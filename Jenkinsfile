@@ -18,9 +18,15 @@ pipeline{
         }
         stage('Checkout from Git'){
             steps{
-                git branch: 'main', url: 'https://github.com/Aj7Ay/Netflix-clone.git'
+                 script{
+                   gitCheckout(
+                     branch: 'main',
+                      url: 'https://github.com/Aj7Ay/Netflix-clone.git'
+                   )
+                }
             }
         }
+        
         stage("Sonarqube Analysis "){
             steps{
                 withSonarQubeEnv('sonar-server') {
@@ -38,7 +44,9 @@ pipeline{
         }
         stage('Install Dependencies') {
             steps {
-                sh "npm install"
+                script{
+                    dependency()
+                }
             }
         }
         stage('OWASP FS SCAN') {
@@ -49,28 +57,32 @@ pipeline{
         }
         stage('TRIVY FS SCAN') {
             steps {
-                sh "trivy fs . > trivyfs.txt"
+                script{
+                    trivyScan()
+                }
             }
         }
         stage("Docker Build & Push"){
             steps{
                 script{
                    withDockerRegistry(credentialsId: 'docker', toolName: 'docker'){   
-                       sh "docker build --build-arg TMDB_V3_API_KEY=${VITE_APP_TMDB_V3_API_KEY} -t netflix ."
-                       sh "docker tag netflix khaushik14/netflix:latest "
-                       sh "docker push khaushik14/netflix:latest "
+                      dockerBuild()
                     }
                 }
             }
         }
         stage("TRIVY"){
             steps{
-                sh "trivy image khaushik14/netflix:latest > trivyimage.txt" 
+                script{
+                    trivy()
+                }
             }
         }
         stage('Deploy to container'){
             steps{
-                sh 'docker run -d -p 8081:80 khaushik14/netflix:latest'
+                script{
+                    dockerDeploy()
+                }
             }
         }
         stage('Deploy to kubernets'){
@@ -78,8 +90,7 @@ pipeline{
                 script{
                     dir('Kubernetes') {
                         withKubeConfig(caCertificate: '', clusterName: '', contextName: '', credentialsId: 'k8s', namespace: '', restrictKubeConfigAccess: false, serverUrl: '') {
-                                sh 'kubectl apply -f deployment.yml'
-                                sh 'kubectl apply -f service.yml'
+                        kubernetsDeploy()
                         }   
                     }
                 }
